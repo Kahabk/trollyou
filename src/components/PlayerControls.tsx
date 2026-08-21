@@ -4,15 +4,11 @@ import {
   Pause,
   RotateCcw,
   RotateCw,
-  SkipBack,
-  SkipForward,
   Volume2,
   VolumeX,
   Maximize,
   Minimize,
   ArrowLeft,
-  Settings,
-  ShieldCheck,
   Check,
 } from 'lucide-react';
 import { VideoItem } from '../types';
@@ -23,7 +19,7 @@ interface PlayerControlsProps {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
-  buffered: number; // percentage (0-100)
+  buffered: number;
   volume: number;
   isMuted: boolean;
   playbackRate: number;
@@ -68,7 +64,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onPrevVideo,
   onNextVideo,
   onBack,
-  onOpenSecurityModal,
   visible,
 }) => {
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -78,7 +73,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const seekBarRef = useRef<HTMLDivElement>(null);
 
-  // Close speed menu when clicking outside or when controls become hidden
   useEffect(() => {
     if (!visible) {
       setShowSpeedMenu(false);
@@ -100,183 +94,48 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const offsetX = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const targetPercent = offsetX / rect.width;
-    const targetTime = targetPercent * duration;
-    onSeek(targetTime);
+    onSeek(targetPercent * duration);
   };
 
   const handleSeekMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!seekBarRef.current || duration <= 0) return;
     const rect = seekBarRef.current.getBoundingClientRect();
     const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const targetPercent = offsetX / rect.width;
-    setHoverSeekTime(targetPercent * duration);
+    setHoverSeekTime((offsetX / rect.width) * duration);
     setHoverSeekPosition(offsetX);
   };
 
-  const handleSeekLeave = () => {
-    setHoverSeekTime(null);
-  };
+  const handleSeekLeave = () => setHoverSeekTime(null);
 
   return (
     <div
-      className={`absolute inset-0 z-30 flex flex-col justify-between p-4 sm:p-6 transition-opacity duration-300 pointer-events-none select-none ${
+      className={`absolute inset-0 z-30 flex flex-col justify-between pointer-events-none select-none transition-opacity duration-300 ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
       onContextMenu={preventContextMenu}
     >
-      {/* Top Bar */}
-      <div className="flex items-center justify-between w-full pointer-events-auto">
-        <div className="flex items-center gap-3">
-          <button
-            id="player-back-btn"
-            type="button"
-            onClick={onBack}
-            aria-label="Back to collection"
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-black/70 backdrop-blur-xl text-white hover:bg-neutral-800 transition-colors border border-white/15 active:scale-95 shadow-lg"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className="flex flex-col">
-            <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-neutral-400">
-              Episode {video.index.toString().padStart(2, '0')}
-            </span>
-            <h2 className="text-sm sm:text-base font-bold text-white tracking-tight line-clamp-1 font-sans">
-              {video.title}
-            </h2>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* View Only Security indicator */}
-          <button
-            id="player-security-btn"
-            type="button"
-            onClick={onOpenSecurityModal}
-            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#121218]/80 backdrop-blur-xl border border-white/10 text-neutral-300 hover:text-white hover:border-white/25 transition-colors text-xs font-medium shadow-md"
-            title="View-Only Protected Stream"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>View Only</span>
-          </button>
-
-          {/* Speed Selector Trigger */}
-          <div className="relative">
-            <button
-              id="player-speed-btn"
-              type="button"
-              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-xl border border-white/15 text-neutral-200 hover:text-white hover:bg-neutral-800 transition-colors text-xs font-mono font-semibold shadow-md"
-              aria-label="Playback Speed"
-            >
-              <span>{playbackRate}x</span>
-            </button>
-
-            {/* Speed selection dropdown */}
-            {showSpeedMenu && (
-              <div className="absolute right-0 top-full mt-2 w-32 bg-[#101015]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-1 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3.5 py-1.5 text-[10px] font-mono uppercase tracking-wider text-neutral-400 border-b border-white/[0.08]">
-                  Speed
-                </div>
-                {PLAYBACK_RATES.map((rate) => (
-                  <button
-                    key={rate}
-                    type="button"
-                    onClick={() => {
-                      onPlaybackRateChange(rate);
-                      setShowSpeedMenu(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium transition-colors ${
-                      playbackRate === rate
-                        ? 'bg-[#20202a] text-white font-bold'
-                        : 'text-neutral-300 hover:bg-[#181820] hover:text-white'
-                    }`}
-                  >
-                    <span>{rate}x</span>
-                    {playbackRate === rate && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Center Big Playback Actions (Prev, -10s, Play/Pause, +10s, Next) */}
-      <div className="flex items-center justify-center gap-4 sm:gap-8 pointer-events-auto">
-        {/* Previous Video Button */}
+      {/* ── Top bar: back button only ── */}
+      <div className="flex items-center p-4 pointer-events-auto">
         <button
-          id="player-prev-video-btn"
+          id="player-back-btn"
           type="button"
-          onClick={onPrevVideo}
-          disabled={!hasPrevVideo}
-          aria-label="Previous Video"
-          className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-xl text-white border border-white/15 transition-all ${
-            hasPrevVideo
-              ? 'hover:bg-neutral-800 hover:scale-105 active:scale-95 shadow-md'
-              : 'opacity-30 cursor-not-allowed'
-          }`}
+          onClick={onBack}
+          aria-label="Back to collection"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-black/60 backdrop-blur-xl text-white hover:bg-black/80 transition-colors border border-white/15 active:scale-95 shadow-lg"
         >
-          <SkipBack className="w-4 h-4 sm:w-5 sm:h-5" />
-        </button>
-
-        {/* Rewind 10 Seconds */}
-        <button
-          id="player-rewind-10-btn"
-          type="button"
-          onClick={() => onSeekRelative(-10)}
-          aria-label="Rewind 10 seconds"
-          className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/60 backdrop-blur-xl text-white border border-white/20 hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all shadow-lg"
-        >
-          <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
-        </button>
-
-        {/* Main Center Play / Pause */}
-        <button
-          id="player-play-pause-btn"
-          type="button"
-          onClick={onPlayPause}
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-          className="flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white text-black shadow-2xl hover:scale-105 active:scale-95 transition-all shadow-white/20"
-        >
-          {isPlaying ? (
-            <Pause className="w-7 h-7 sm:w-9 sm:h-9 fill-current" />
-          ) : (
-            <Play className="w-7 h-7 sm:w-9 sm:h-9 ml-1 fill-current" />
-          )}
-        </button>
-
-        {/* Forward 10 Seconds */}
-        <button
-          id="player-forward-10-btn"
-          type="button"
-          onClick={() => onSeekRelative(10)}
-          aria-label="Forward 10 seconds"
-          className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/60 backdrop-blur-xl text-white border border-white/20 hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all shadow-lg"
-        >
-          <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
-        </button>
-
-        {/* Next Video Button */}
-        <button
-          id="player-next-video-btn"
-          type="button"
-          onClick={onNextVideo}
-          disabled={!hasNextVideo}
-          aria-label="Next Video"
-          className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-xl text-white border border-white/15 transition-all ${
-            hasNextVideo
-              ? 'hover:bg-neutral-800 hover:scale-105 active:scale-95 shadow-md'
-              : 'opacity-30 cursor-not-allowed'
-          }`}
-        >
-          <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
+          <ArrowLeft className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Bottom Controls (Seekbar, Timers, Volume, Fullscreen) */}
-      <div className="flex flex-col gap-2 w-full pointer-events-auto bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2.5 sm:p-4 rounded-3xl backdrop-blur-sm">
-        {/* Interactive Custom Seek Bar */}
+      {/* ── Middle: empty (no center buttons) ── */}
+      <div />
+
+      {/* ── Bottom bar: seekbar + controls ── */}
+      <div
+        className="flex flex-col gap-2 w-full pointer-events-auto px-3 pb-4 pt-8"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)' }}
+      >
+        {/* Seekbar */}
         <div
           ref={seekBarRef}
           onMouseDown={handleSeekStart}
@@ -290,7 +149,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           aria-valuemax={duration}
           aria-valuenow={currentTime}
         >
-          {/* Hover Time Tooltip */}
+          {/* Hover tooltip */}
           {hoverSeekTime !== null && (
             <div
               className="absolute -top-8 transform -translate-x-1/2 px-2.5 py-0.5 rounded-lg bg-[#14141a] border border-white/20 text-[11px] font-mono text-white pointer-events-none z-40 shadow-xl"
@@ -299,40 +158,72 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               {formatTime(hoverSeekTime)}
             </div>
           )}
-
-          {/* Scrubber track background */}
-          <div className="relative w-full h-1.5 group-hover:h-2.5 bg-[#1a1a22] rounded-full overflow-hidden transition-all duration-150">
-            {/* Buffered track */}
+          <div className="relative w-full h-1 group-hover:h-2 bg-white/20 rounded-full overflow-hidden transition-all duration-150">
             <div
-              className="absolute top-0 bottom-0 left-0 bg-[#282834] rounded-full transition-all"
+              className="absolute top-0 bottom-0 left-0 bg-white/30 rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, buffered))}%` }}
             />
-            {/* Played progress track */}
             <div
-              className="absolute top-0 bottom-0 left-0 bg-white rounded-full transition-all shadow-[0_0_10px_rgba(255,255,255,0.6)]"
+              className="absolute top-0 bottom-0 left-0 bg-white rounded-full"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-
-          {/* Scrubber Handle */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg transform -translate-x-1/2 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all pointer-events-none ring-2 ring-black/40"
+            className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 -translate-x-1/2 transition-all pointer-events-none"
             style={{ left: `${progressPercent}%` }}
           />
         </div>
 
-        {/* Bottom Status Bar */}
-        <div className="flex items-center justify-between text-xs font-mono text-neutral-300 pt-0.5">
-          {/* Time indicator */}
-          <div className="flex items-center gap-1.5 font-medium">
-            <span className="text-white font-bold">{formatTime(currentTime)}</span>
-            <span className="text-neutral-600">/</span>
-            <span className="text-neutral-400">{formatTime(duration)}</span>
+        {/* Controls row */}
+        <div className="flex items-center justify-between text-white">
+          {/* Left: play/pause + seek buttons + time */}
+          <div className="flex items-center gap-2">
+            {/* Play/Pause */}
+            <button
+              id="player-play-pause-btn"
+              type="button"
+              onClick={onPlayPause}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors active:scale-90"
+            >
+              {isPlaying
+                ? <Pause className="w-5 h-5 fill-current" />
+                : <Play className="w-5 h-5 ml-0.5 fill-current" />}
+            </button>
+
+            {/* Rewind */}
+            <button
+              id="player-rewind-10-btn"
+              type="button"
+              onClick={() => onSeekRelative(-10)}
+              aria-label="Rewind 10s"
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors active:scale-90"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+
+            {/* Forward */}
+            <button
+              id="player-forward-10-btn"
+              type="button"
+              onClick={() => onSeekRelative(10)}
+              aria-label="Forward 10s"
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors active:scale-90"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
+
+            {/* Time */}
+            <span className="text-xs font-mono text-neutral-300 ml-1">
+              <span className="text-white font-bold">{formatTime(currentTime)}</span>
+              <span className="text-neutral-500 mx-1">/</span>
+              {formatTime(duration)}
+            </span>
           </div>
 
-          {/* Right Action Group (Volume & Fullscreen) */}
-          <div className="flex items-center gap-3">
-            {/* Volume control */}
+          {/* Right: volume + speed + fullscreen */}
+          <div className="flex items-center gap-1">
+            {/* Volume */}
             <div
               className="relative flex items-center"
               onMouseEnter={() => setShowVolumeSlider(true)}
@@ -343,45 +234,64 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 type="button"
                 onClick={onToggleMute}
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
-                className="p-2 rounded-xl text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-2 rounded-xl hover:bg-white/10 transition-colors"
               >
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4 text-red-400" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
-                )}
+                {isMuted || volume === 0
+                  ? <VolumeX className="w-4 h-4 text-red-400" />
+                  : <Volume2 className="w-4 h-4" />}
               </button>
-
-              {/* Volume Slider for desktop */}
               {showVolumeSlider && (
-                <div className="hidden sm:flex items-center w-20 ml-1 bg-[#121218]/95 px-2.5 py-2 rounded-xl border border-white/10 shadow-lg">
+                <div className="hidden sm:flex items-center w-20 ml-1 bg-[#121218]/95 px-2.5 py-2 rounded-xl border border-white/10">
                   <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
+                    type="range" min={0} max={1} step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                    aria-label="Volume slider"
+                    aria-label="Volume"
                     className="w-full h-1 bg-[#252530] rounded-lg appearance-none cursor-pointer accent-white"
                   />
                 </div>
               )}
             </div>
 
-            {/* Fullscreen Button */}
+            {/* Speed */}
+            <div className="relative">
+              <button
+                id="player-speed-btn"
+                type="button"
+                onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                className="px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-xs font-mono font-bold"
+                aria-label="Speed"
+              >
+                {playbackRate}x
+              </button>
+              {showSpeedMenu && (
+                <div className="absolute right-0 bottom-full mb-2 w-28 bg-[#101015]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-1 z-50">
+                  {PLAYBACK_RATES.map((rate) => (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => { onPlaybackRateChange(rate); setShowSpeedMenu(false); }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium transition-colors ${
+                        playbackRate === rate ? 'bg-[#20202a] text-white font-bold' : 'text-neutral-300 hover:bg-[#181820] hover:text-white'
+                      }`}
+                    >
+                      <span>{rate}x</span>
+                      {playbackRate === rate && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fullscreen */}
             <button
               id="player-fullscreen-btn"
               type="button"
               onClick={onToggleFullscreen}
-              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              className="p-2 rounded-xl text-neutral-300 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              className="p-2 rounded-xl hover:bg-white/10 transition-colors"
             >
-              {isFullscreen ? (
-                <Minimize className="w-4 h-4" />
-              ) : (
-                <Maximize className="w-4 h-4" />
-              )}
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
           </div>
         </div>

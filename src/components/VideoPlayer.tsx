@@ -85,7 +85,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (isPlaying) {
       hideControlsTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 3500);
+      }, 1500);
     }
   }, [isPlaying]);
 
@@ -443,17 +443,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Loading Spinner */}
-        {isLoading && !hasError && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none">
-            <div className="p-4 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-white animate-spin" />
-              <span className="text-xs font-mono tracking-wider text-neutral-300">
-                Streaming Episode {video.index.toString().padStart(2, '0')}...
-              </span>
-            </div>
-          </div>
-        )}
+
+
 
         {/* Resume Position Prompt */}
         <AnimatePresence>
