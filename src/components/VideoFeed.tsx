@@ -45,7 +45,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   });
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-7 pb-28">
+    <div className="w-full max-w-3xl mx-auto px-4 sm:px-5 pt-7 pb-28">
       {/* Header section */}
       <header className="flex flex-col gap-4 pb-6 border-b border-white/[0.08]">
         <div className="flex items-start justify-between">
@@ -178,8 +178,8 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
         </div>
       </header>
 
-      {/* Vertical Video Cards List */}
-      <main className="mt-5 space-y-3.5">
+      {/* Video Grid */}
+      <main className="mt-5 grid grid-cols-2 gap-3">
         {filteredVideos.length > 0 ? (
           filteredVideos.map((video) => (
             <VideoCard
@@ -191,7 +191,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
             />
           ))
         ) : (
-          <div className="text-center py-12 px-4 rounded-2xl bg-[#0e0e12]/60 border border-white/[0.07] text-neutral-400">
+          <div className="col-span-2 text-center py-12 px-4 rounded-2xl bg-[#0e0e12]/60 border border-white/[0.07] text-neutral-400">
             <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-neutral-500" />
             <p className="text-sm font-medium text-neutral-300">
               No videos in this category

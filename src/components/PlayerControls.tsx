@@ -139,7 +139,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
 
           <div className="flex flex-col">
             <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-neutral-400">
-              Episode {video.index.toString().padStart(2, '0')} of 12
+              Episode {video.index.toString().padStart(2, '0')}
             </span>
             <h2 className="text-sm sm:text-base font-bold text-white tracking-tight line-clamp-1 font-sans">
               {video.title}

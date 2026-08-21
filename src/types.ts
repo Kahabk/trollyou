@@ -5,7 +5,7 @@ export interface VideoItem {
   subtitle?: string;
   description: string;
   videoUrl: string;
-  thumbnailUrl: string;
+  thumbnailUrl?: string;
   duration: string; // e.g. "04:12"
   durationSeconds: number; // e.g. 252
   category?: string;

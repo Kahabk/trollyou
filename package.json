@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "prebuild": "mkdir -p public/videos public/thumbnails && (cp -n assets/.aistudio/videos/*.mp4 public/videos/ 2>/dev/null || true)",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
