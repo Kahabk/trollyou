@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Play, Check, Clock, Sparkles } from 'lucide-react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { Play, Volume2, VolumeX, CheckCircle2 } from 'lucide-react';
 import { VideoItem, PlaybackProgress } from '../types';
 import { ProgressBar } from './ProgressBar';
-import { preventContextMenu, preventDragStart, formatTime } from '../utils/videoSecurity';
+import { preventContextMenu, preventDragStart, VIEW_ONLY_VIDEO_ATTRIBUTES } from '../utils/videoSecurity';
 
 interface VideoCardProps {
   video: VideoItem;
@@ -17,170 +17,170 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   onSelect,
   isCurrentlyPlaying = false,
 }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const previewRef = useRef<HTMLVideoElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
+  const [previewMuted, setPreviewMuted] = useState(true);
 
   const watchedPercentage = progress && progress.duration > 0
     ? (progress.currentTime / progress.duration) * 100
     : 0;
-
   const isCompleted = progress?.completed || watchedPercentage >= 90;
   const isStarted = !isCompleted && watchedPercentage > 2;
+
+  // Seek to 1s on mount so the first frame shows as thumbnail
+  useEffect(() => {
+    const vid = previewRef.current;
+    if (!vid) return;
+    const onLoaded = () => { vid.currentTime = 1; };
+    vid.addEventListener('loadedmetadata', onLoaded);
+    return () => vid.removeEventListener('loadedmetadata', onLoaded);
+  }, [video.videoUrl]);
+
+  const handleMouseEnter = useCallback(() => {
+    setIsHovering(true);
+    hoverTimerRef.current = setTimeout(() => {
+      const vid = previewRef.current;
+      if (!vid) return;
+      vid.muted = true;
+      vid.currentTime = 0;
+      vid.play().catch(() => {});
+    }, 400);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovering(false);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    const vid = previewRef.current;
+    if (vid) {
+      vid.pause();
+      vid.currentTime = 1; // snap back to thumbnail frame
+    }
+    setPreviewMuted(true);
+  }, []);
+
+  useEffect(() => () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  }, []);
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = !previewMuted;
+    setPreviewMuted(next);
+    if (previewRef.current) previewRef.current.muted = next;
+  };
 
   return (
     <div
       id={`video-card-${video.id}`}
       onClick={() => onSelect(video)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect(video);
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(video); }
       }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       role="button"
       tabIndex={0}
-      aria-label={`Play ${video.title} (${video.duration})`}
-      className={`group relative w-full text-left transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer active:scale-[0.985] select-none ${
+      aria-label={`Play ${video.title}`}
+      className={`group relative w-full text-left cursor-pointer select-none rounded-2xl overflow-hidden transition-all duration-300 ${
         isCurrentlyPlaying
-          ? 'bg-[#14141a] border border-white/40 ring-1 ring-white/25 shadow-xl shadow-black/80'
-          : 'bg-[#0d0d11]/90 hover:bg-[#131317] border border-white/[0.07] hover:border-white/[0.18] shadow-md shadow-black/40'
+          ? 'ring-2 ring-white/50 shadow-2xl shadow-white/10 scale-[1.01]'
+          : 'hover:scale-[1.01] active:scale-[0.99]'
       }`}
     >
-      <div className="flex flex-col sm:flex-row gap-3.5 p-3.5 sm:p-4">
-        {/* Thumbnail container */}
-        <div
-          className="relative aspect-video sm:w-56 w-full flex-shrink-0 bg-[#060608] rounded-xl overflow-hidden shadow-inner border border-white/[0.08]"
+      {/* ── Video thumbnail / preview area ── */}
+      <div
+        className="relative w-full aspect-video bg-black overflow-hidden"
+        onContextMenu={preventContextMenu}
+        onDragStart={preventDragStart}
+      >
+        {/* Video — always visible, paused at frame 1 when idle, plays on hover */}
+        <video
+          ref={previewRef}
+          src={video.videoUrl}
+          {...VIEW_ONLY_VIDEO_ATTRIBUTES}
+          muted
+          loop
+          preload="metadata"
+          controls={false}
           onContextMenu={preventContextMenu}
           onDragStart={preventDragStart}
-        >
-          {/* Skeleton placeholder while loading */}
-          {!imageLoaded && !imageError && (
-            <div className="absolute inset-0 bg-[#101014] animate-pulse flex items-center justify-center">
-              <span className="text-xs text-neutral-600 font-mono font-medium tracking-wider">
-                EP {video.index.toString().padStart(2, '0')}
-              </span>
-            </div>
-          )}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        />
 
-          {/* Actual image or fallback gradient */}
-          {!imageError ? (
-            <img
-              src={video.thumbnailUrl}
-              alt={video.title}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              draggable={false}
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
-              className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-                imageLoaded ? 'opacity-100' : 'opacity-0'
-              }`}
+        {/* Gradient overlay — stronger when idle so play button pops */}
+        <div className={`absolute inset-0 pointer-events-none transition-opacity duration-300 bg-gradient-to-t from-black/80 via-black/20 to-black/10 ${
+          isHovering ? 'opacity-60' : 'opacity-100'
+        }`} />
+
+        {/* Center play button — fades out while previewing */}
+        <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
+          isHovering ? 'opacity-0 scale-75' : 'opacity-100'
+        }`}>
+          <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl border transition-all duration-300 ${
+            isCurrentlyPlaying
+              ? 'bg-white border-transparent text-black'
+              : 'bg-black/50 border-white/30 text-white backdrop-blur-md group-hover:bg-white group-hover:text-black group-hover:border-transparent group-hover:scale-110'
+          }`}>
+            <Play className="w-6 h-6 ml-0.5 fill-current" />
+          </div>
+        </div>
+
+        {/* Duration badge — bottom right */}
+        <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-sm text-[11px] font-mono font-bold text-white border border-white/10 shadow">
+          {video.duration}
+        </div>
+
+        {/* Watched badge — top right */}
+        {isCompleted && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 backdrop-blur-sm text-[10px] font-bold text-white shadow-lg">
+            <CheckCircle2 className="w-3 h-3" />
+            Watched
+          </div>
+        )}
+
+        {/* Now playing indicator — top left */}
+        {isCurrentlyPlaying && (
+          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white animate-pulse">
+            <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
+            Now Playing
+          </div>
+        )}
+
+        {/* Mute toggle — only while hovering & video is playing */}
+        {isHovering && (
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="absolute bottom-2.5 left-2.5 z-20 p-2 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 hover:bg-white hover:text-black transition-all active:scale-90 shadow-lg"
+            aria-label={previewMuted ? 'Unmute' : 'Mute'}
+          >
+            {previewMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
+
+        {/* Watch progress bar */}
+        {isStarted && (
+          <div className="absolute bottom-0 left-0 right-0 z-10">
+            <ProgressBar
+              progress={watchedPercentage}
+              className="h-[3px] w-full bg-white/10"
+              barColor="bg-red-500"
             />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#18181f] to-[#08080a] p-2 text-center">
-              <span className="text-2xl font-bold text-neutral-400 font-mono">
-                {video.index.toString().padStart(2, '0')}
-              </span>
-              <span className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">
-                Private Stream
-              </span>
-            </div>
-          )}
-
-          {/* Dark gradient overlay for contrast */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-
-          {/* Episode number badge top-left */}
-          <div className="absolute top-2 left-2 z-10">
-            <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider rounded-md bg-black/80 backdrop-blur-md text-neutral-200 border border-white/15 shadow-sm">
-              EP {video.index.toString().padStart(2, '0')}
-            </span>
           </div>
+        )}
+      </div>
 
-          {/* Duration badge bottom-right */}
-          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-mono font-semibold rounded bg-black/85 backdrop-blur-md text-neutral-200 border border-white/15">
-            <Clock className="w-2.5 h-2.5 text-neutral-400" />
-            <span>{video.duration}</span>
-          </div>
-
-          {/* Play icon overlay on hover/active */}
-          <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200">
-            <div className={`w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-transform duration-200 ${
-              isCurrentlyPlaying
-                ? 'bg-white text-black scale-100 shadow-white/20'
-                : 'bg-black/75 backdrop-blur-md text-white border border-white/20 group-hover:scale-110 group-hover:bg-white group-hover:text-black group-hover:border-transparent'
-            }`}>
-              <Play className="w-4 h-4 ml-0.5 fill-current" />
-            </div>
-          </div>
-
-          {/* Progress bar at the bottom edge of thumbnail */}
-          {isStarted && (
-            <div className="absolute bottom-0 left-0 right-0 z-20">
-              <ProgressBar
-                progress={watchedPercentage}
-                className="h-1 w-full bg-black/60"
-                barColor="bg-gradient-to-r from-red-500 to-red-400"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Card Metadata & Details */}
-        <div className="flex flex-col justify-between flex-grow min-w-0 py-0.5">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-400">
-                Episode {video.index.toString().padStart(2, '0')}
-              </span>
-              
-              {isCompleted && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-full shadow-sm">
-                  <Check className="w-3 h-3 stroke-[2.5]" />
-                  Watched
-                </span>
-              )}
-
-              {isStarted && (
-                <span className="text-[11px] font-medium text-amber-400/90 bg-amber-950/40 border border-amber-800/30 px-2 py-0.5 rounded-full">
-                  {Math.round(watchedPercentage)}% watched
-                </span>
-              )}
-
-              {isCurrentlyPlaying && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 bg-blue-950/60 border border-blue-800/40 px-2 py-0.5 rounded-full animate-pulse">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Playing now
-                </span>
-              )}
-            </div>
-
-            <h3 className="text-base sm:text-lg font-bold text-neutral-100 tracking-tight leading-snug group-hover:text-white transition-colors line-clamp-1 font-sans">
-              {video.title}
-            </h3>
-
-            <p className="text-xs sm:text-sm text-neutral-400 line-clamp-2 mt-1 leading-relaxed">
-              {video.description}
-            </p>
-          </div>
-
-          {/* Bottom Card Footer */}
-          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-white/[0.06] text-xs text-neutral-400">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {video.tags?.map((tag) => (
-                <span key={tag} className="text-[11px] text-neutral-400 bg-[#16161d] border border-white/[0.05] px-2 py-0.5 rounded-md font-mono">
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {isStarted && progress && (
-              <span className="text-[11px] font-mono text-neutral-400">
-                {formatTime(progress.currentTime)} left
-              </span>
-            )}
-          </div>
-        </div>
+      {/* ── Card footer — title only ── */}
+      <div className={`px-3.5 py-3 transition-colors duration-200 ${
+        isCurrentlyPlaying ? 'bg-[#161620]' : 'bg-[#0d0d12] group-hover:bg-[#111118]'
+      }`}>
+        <h3 className="text-sm font-bold text-neutral-100 group-hover:text-white transition-colors font-sans tracking-tight">
+          {video.title}
+        </h3>
       </div>
     </div>
   );

@@ -89,6 +89,38 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [isPlaying]);
 
+  // Candidate URL fallback paths for robust deployment across subpaths/hosting providers
+  const candidateUrls = React.useMemo(() => {
+    const fileName = `${video.index}.mp4`;
+    const set = new Set<string>();
+    if (video.videoUrl) set.add(video.videoUrl);
+    set.add(`/videos/${fileName}`);
+    set.add(`videos/${fileName}`);
+    set.add(`./videos/${fileName}`);
+    set.add(`/assets/.aistudio/videos/${fileName}`);
+    set.add(`assets/.aistudio/videos/${fileName}`);
+    return Array.from(set);
+  }, [video.index, video.videoUrl]);
+
+  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+
+  useEffect(() => {
+    setCurrentUrlIndex(0);
+  }, [video.id]);
+
+  const activeSrc = candidateUrls[currentUrlIndex] || video.videoUrl;
+
+  const handleVideoError = () => {
+    if (currentUrlIndex + 1 < candidateUrls.length) {
+      console.warn(`Video source failed at ${activeSrc}. Trying fallback: ${candidateUrls[currentUrlIndex + 1]}`);
+      setCurrentUrlIndex((prev) => prev + 1);
+    } else {
+      setIsLoading(false);
+      setHasError(true);
+      setErrorMessage('Unable to stream video. Please check connection or source file.');
+    }
+  };
+
   // Check if we should offer resume from saved position
   useEffect(() => {
     setIsLoading(true);
@@ -357,8 +389,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         {/* The Native HTML5 Video Element with View-Only Attributes */}
         <video
           ref={videoRef}
-          src={video.videoUrl}
-          poster={video.thumbnailUrl}
+          src={activeSrc}
           controls={false}
           {...VIEW_ONLY_VIDEO_ATTRIBUTES}
           onTimeUpdate={handleTimeUpdate}
@@ -370,11 +401,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           }}
           onPause={() => setIsPlaying(false)}
           onEnded={handleVideoEnded}
-          onError={() => {
-            setIsLoading(false);
-            setHasError(true);
-            setErrorMessage('Unable to stream video. Please check connection or source file.');
-          }}
+          onError={handleVideoError}
           onContextMenu={preventContextMenu}
           onDragStart={preventDragStart}
           className="w-full h-full object-contain pointer-events-none"
