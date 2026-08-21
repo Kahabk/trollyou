@@ -1,0 +1,6 @@
+{
+  "name": "12 Videos",
+  "description": "A premium, mobile-first view-only video player for a private collection of 12 videos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
